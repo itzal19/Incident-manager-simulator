@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 from typing import List, Set, Optional
 from incident.models import Incident
+from core.validator import IncidentValidator
 
 class Dispatcher:
     def __init__(self):
@@ -11,12 +12,21 @@ class Dispatcher:
         self.escalation_minutes: int = 5
 
     def register_incident(self, incident_type: str, priority: str, description: str):
+        if not IncidentValidator.validate_type(incident_type):
+            print(f"Invalid incident type: '{incident_type}'.")
+            return
+
+        if not IncidentValidator.validate_priority(priority):
+            print(f"Invalid priority: '{priority}'.")
+            return
+
         incident = Incident(
             id=self.id_counter,
-            type=incident_type,
-            priority=priority,
+            type=incident_type.lower(),
+            priority=priority.lower(),
             description=description
         )
+
         self.incidents.append(incident)
         print(f"Incident number {self.id_counter} registered.")
         self.id_counter += 1
@@ -45,6 +55,10 @@ class Dispatcher:
             print(f"Incident number {incident_id} is not pending.")
             return
 
+        if not IncidentValidator.validate_operator(operator, self.operators):
+            print(f"'{operator}' not available.")
+            return
+        
         if operator not in self.operators:
             print(f"'{operator}' not available.")
             return
@@ -66,7 +80,7 @@ class Dispatcher:
         incident.status = "resolved"
         incident.resolved_at = datetime.now()
         self.history.append(f"Incident number {incident.id} resolved at {incident.resolved_at}")
-        print(f"Incident #{incident.id} resolved.")
+        print(f"Incident number {incident.id} resolved.")
 
     def auto_escalate(self):
         now = datetime.now()
