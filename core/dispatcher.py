@@ -1,25 +1,32 @@
-from datetime import datetime, timedelta
-from typing import List, Set, Optional
+from datetime import datetime
+from typing import List, Set
 from incident.models import Incident
 from core.validator import IncidentValidator
-from incident.filters import get_pending_sorted_by_priority
 from core.escalator import IncidentEscalator
+from persistence.storage import save_history
 
 class Dispatcher:
     def __init__(self):
         self.incidents: List[Incident] = []
         self.id_counter: int = 1
-        self.operators: Set[str] = {"Operator_1", "Operator_2", "Operator_3", "Operator_4"}
+        self.operators = {
+            "Carlos": {"profile": {"infraestructura", "seguridad"}, "busy": False},
+            "Jairo": {"profile": {"aplicativo"}, "busy": False},
+            "Jose": {"profile": {"infraestructura", "aplicativo"}, "busy": False},
+            "Marco": {"profile": {"seguridad"}, "busy": False},
+        }
         self.history: List[str] = []
-        self.escalation_minutes: int = 5
+        self.escalation_minutes: int = 1 #5
+        self.escalator = IncidentEscalator(self.escalation_minutes)
+        self.validator = IncidentValidator(self.incidents, self.operators)
 
     def register_incident(self, incident_type: str, priority: str, description: str):
-        if not IncidentValidator.validate_type(incident_type):
-            print(f"Invalid incident type: '{incident_type}'.")
+        if not self.validator.validate_type(incident_type):
+            print(f"Tipo inválido de incidente: '{incident_type}'.")
             return
 
-        if not IncidentValidator.validate_priority(priority):
-            print(f"Invalid priority: '{priority}'.")
+        if not self.validator.validate_priority(priority):
+            print(f"Prioridad inválida: '{priority}'.")
             return
 
         incident = Incident(
@@ -29,67 +36,81 @@ class Dispatcher:
             description=description
         )
 
-        self.incidents.append(incident)
-        print(f"Incident number {self.id_counter} registered.")
+        priority_order = {"alta": 0, "media": 1, "baja": 2}
+        inserted = False
+        for idx, inc in enumerate(self.incidents):
+            if priority_order[incident.priority] < priority_order[inc.priority]:
+                self.incidents.insert(idx, incident)
+                inserted = True
+                break
+        if not inserted:
+            self.incidents.append(incident)
+
+        print(f"✔ ID generado: {incident.id:03}")
         self.id_counter += 1
 
     def show_pending_incidents(self):
-        pending_incidents = get_pending_sorted_by_priority(self.incidents)
+        self.auto_escalate()
+        pending_incidents = [inc for inc in self.incidents if inc.status == "pending"]
 
         if not pending_incidents:
-            print("There are no pending incidents.")
+            print("No hay incidentes pendientes.")
             return
 
-        print("Pending Incidents:")
+        print(f"> Ver incidentes pendientes ({len(pending_incidents)})")
         for inc in pending_incidents:
-            print(f"[{inc.id}] {inc.type} | Priority: {inc.priority} | Status: {inc.status}")
+            print(f"[{inc.id:03}] {inc.type.capitalize()} | Prioridad: {inc.priority} | Estado: {inc.status}")
 
-    def assign_incident(self, incident_id: int, operator: str):
-        incident = next((inc for inc in self.incidents if inc.id == incident_id), None)
-
+    def assign_incident(self, incident_id: int):
+        incident = self.validator.incident_exists(incident_id)
         if not incident:
-            print(f"Incident number {incident_id} not found.")
+            print(f"Incidente {incident_id} no encontrado.")
             return
 
-        if incident.status != "pending":
-            print(f"Incident number {incident_id} is not pending.")
+        if not self.validator.is_pending(incident):
+            print(f"Incidente {incident_id} no está pendiente.")
             return
 
-        if not IncidentValidator.validate_operator(operator, self.operators):
-            print(f"'{operator}' not available.")
-            return
-        
-        if operator not in self.operators:
-            print(f"'{operator}' not available.")
-            return
+        for operator_name, data in self.operators.items():
+            if not data["busy"] and incident.type in data["profile"]:
+                incident.assigned_to = operator_name
+                data["busy"] = True
+                print(f"✔ Asignado correctamente a {operator_name}.")
+                return
 
-        incident.assigned_to = operator
-        print(f"Incident number {incident.id} assigned to {operator}.")
+        print("No hay operadores disponibles con perfil compatible para este incidente.")
 
     def resolve_incident(self, incident_id: int):
-        incident = next((inc for inc in self.incidents if inc.id == incident_id), None)
+        incident = self.validator.incident_exists(incident_id)
 
         if not incident:
-            print(f"Incident number {incident_id} not found.")
+            print(f"Incidente {incident_id} no encontrado.")
             return
 
-        if incident.status != "pending":
-            print(f"Incident number {incident_id} cannot be resolved (status: {incident.status}).")
+        if not self.validator.is_pending(incident):
+            print(f"Incidente {incident_id} no puede ser resuelto (estado: {incident.status}).")
             return
 
         incident.status = "resolved"
         incident.resolved_at = datetime.now()
-        self.history.append(f"Incident number {incident.id} resolved at {incident.resolved_at}")
-        print(f"Incident number {incident.id} resolved.")
+
+        operator = incident.assigned_to
+        if operator and operator in self.operators:
+            self.operators[operator]["busy"] = False
+
+        resolved_str = incident.resolved_at.strftime("%Y-%m-%d %H:%M:%S")
+        self.history.append(f"[{incident.id:03}] Resuelto por {operator} a las {resolved_str}")
+        save_history(self.history)
+        print("✔ Marcado como resuelto")
 
     def auto_escalate(self):
         self.escalator.auto_escalate(self.incidents, self.history)
 
     def show_history(self):
         if not self.history:
-            print("No history yet.")
+            print("Aún no se cuenta con historial.")
             return
 
-        print("Incident History:")
+        print("> Ver historial")
         for record in self.history:
             print(record)

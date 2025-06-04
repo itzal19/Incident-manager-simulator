@@ -9,8 +9,3 @@ def filter_by_priority(incidents: List[Incident], priority: str) -> List[Inciden
 
 def filter_by_operator(incidents: List[Incident], operator: str) -> List[Incident]:
     return [inc for inc in incidents if inc.assigned_to == operator]
-
-def get_pending_sorted_by_priority(incidents: List[Incident]) -> List[Incident]:
-    priority_order = {"high": 0, "medium": 1, "low": 2}
-    pending = filter_by_status(incidents, "pending")
-    return sorted(pending, key=lambda inc: priority_order.get(inc.priority, 3))

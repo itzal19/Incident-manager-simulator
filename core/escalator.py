@@ -13,5 +13,5 @@ class IncidentEscalator:
                 diff = now - inc.created_at
                 if diff > timedelta(minutes=self.escalation_minutes):
                     inc.status = "escalated"
-                    history.append(f"Incident number {inc.id} escalated at {now}")
-                    print(f"Incident number {inc.id} escalated automatically.")
+                    history.append(f"Incidente {inc.id} escalado a las {now}")
+                    print(f"Incidente {inc.id} escalado automáticamente.")
