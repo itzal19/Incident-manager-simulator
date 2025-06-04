@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 from typing import List, Set, Optional
 from incident.models import Incident
 from core.validator import IncidentValidator
+from incident.filters import get_pending_sorted_by_priority
 
 class Dispatcher:
     def __init__(self):
@@ -32,9 +33,7 @@ class Dispatcher:
         self.id_counter += 1
 
     def show_pending_incidents(self):
-        priority_order = {"high": 0, "medium": 1, "low": 2}
-        pending_incidents = [inc for inc in self.incidents if inc.status == "pending"]
-        pending_incidents.sort(key=lambda x: priority_order.get(x.priority, 3))
+        pending_incidents = get_pending_sorted_by_priority(self.incidents)
 
         if not pending_incidents:
             print("There are no pending incidents.")
