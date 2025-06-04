@@ -99,7 +99,7 @@ class Dispatcher:
             self.operators[operator]["busy"] = False
 
         resolved_str = incident.resolved_at.strftime("%Y-%m-%d %H:%M:%S")
-        self.history.append(f"[{incident.id:03}] Resuelto por {operator} a las {resolved_str}")
+        self.history.append(f"[{incident.id:03}] Incidente resuelto por {operator} a las {resolved_str}")
         save_history(self.history)
         print("✔ Marcado como resuelto")
 
