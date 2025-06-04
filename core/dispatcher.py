@@ -3,6 +3,7 @@ from typing import List, Set, Optional
 from incident.models import Incident
 from core.validator import IncidentValidator
 from incident.filters import get_pending_sorted_by_priority
+from core.escalator import IncidentEscalator
 
 class Dispatcher:
     def __init__(self):
@@ -82,14 +83,7 @@ class Dispatcher:
         print(f"Incident number {incident.id} resolved.")
 
     def auto_escalate(self):
-        now = datetime.now()
-        for incident in self.incidents:
-            if incident.status == "pending":
-                diff = now - incident.created_at
-                if diff > timedelta(minutes=self.escalation_minutes):
-                    incident.status = "escalated"
-                    self.history.append(f"Incident number {incident.id} escalated at {now}")
-                    print(f"Incident number {incident.id} escalated automatically.")
+        self.escalator.auto_escalate(self.incidents, self.history)
 
     def show_history(self):
         if not self.history:
